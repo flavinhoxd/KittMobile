@@ -1,14 +1,33 @@
-/* eslint-disable */
-import * as Router from 'expo-router';
+import { Link, Stack } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
 
-export * from 'expo-router';
-
-declare module 'expo-router' {
-  export namespace ExpoRouter {
-    export interface __routes<T extends string | object = string> {
-      hrefInputParams: { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | { pathname: `/+not-found`, params: Router.UnknownInputParams & {  } };
-      hrefOutputParams: { pathname: Router.RelativePathString, params?: Router.UnknownOutputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownOutputParams } | { pathname: `/`; params?: Router.UnknownOutputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownOutputParams; } | { pathname: `/+not-found`, params: Router.UnknownOutputParams & {  } };
-      href: Router.RelativePathString | Router.ExternalPathString | `/${`?${string}` | `#${string}` | ''}` | `/_sitemap${`?${string}` | `#${string}` | ''}` | { pathname: Router.RelativePathString, params?: Router.UnknownInputParams } | { pathname: Router.ExternalPathString, params?: Router.UnknownInputParams } | { pathname: `/`; params?: Router.UnknownInputParams; } | { pathname: `/_sitemap`; params?: Router.UnknownInputParams; } | `/+not-found${`?${string}` | `#${string}` | ''}` | { pathname: `/+not-found`, params: Router.UnknownInputParams & {  } };
-    }
-  }
+export default function NotFoundScreen() {
+  return (
+    <>
+      <Stack.Screen options={{ title: 'Oops!' }} />
+      <View style={styles.container}>
+        <Text style={styles.text}>This screen doesn't exist.</Text>
+        <Link href="/" style={styles.link}>
+          <Text>Go to home screen!</Text>
+        </Link>
+      </View>
+    </>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  text: {
+    fontSize: 20,
+    fontWeight: 600,
+  },
+  link: {
+    marginTop: 15,
+    paddingVertical: 15,
+  },
+});

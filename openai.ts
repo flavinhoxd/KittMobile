@@ -1,553 +1,224 @@
-import { useState, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Platform,
-  Dimensions,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
-import PulsingOrb from '@/components/PulsingOrb';
-import { transcribeAudio, chatWithKITT, textToSpeech } from '@/services/openai';
+import { useEffect, useRef } from 'react';
+import { StyleSheet, View, Animated, Easing } from 'react-native';
 
-const { width } = Dimensions.get('window');
+type OrbState = 'idle' | 'recording' | 'processing' | 'speaking';
 
-type AppState = 'idle' | 'recording' | 'processing' | 'speaking' | 'done' | 'error';
-
-interface ConversationEntry {
-  userText: string;
-  kittText: string;
+interface PulsingOrbProps {
+  state: OrbState;
 }
 
-export default function KITTScreen() {
-  const [appState, setAppState] = useState<AppState>('idle');
-  const [conversation, setConversation] = useState<ConversationEntry | null>(null);
-  const [statusMessage, setStatusMessage] = useState('SISTEMAS PRONTOS');
-  const [errorMessage, setErrorMessage] = useState('');
+const STATE_COLORS: Record<OrbState, string> = {
+  idle: '#CC0000',
+  recording: '#FF3333',
+  processing: '#FF6600',
+  speaking: '#FF0044',
+};
 
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
+const STATE_SPEEDS: Record<OrbState, number> = {
+  idle: 1200,
+  recording: 600,
+  processing: 800,
+  speaking: 500,
+};
 
-  const requestPermissions = useCallback(async (): Promise<boolean> => {
-    if (Platform.OS === 'web') {
-      setErrorMessage('Gravação de áudio não disponível no navegador. Use o app mobile.');
-      setAppState('error');
-      return false;
-    }
-    const { granted } = await Audio.requestPermissionsAsync();
-    if (!granted) {
-      setErrorMessage('Permissão de microfone negada. Acesse as configurações para habilitar.');
-      setAppState('error');
-      return false;
-    }
-    return true;
-  }, []);
+export default function PulsingOrb({ state }: PulsingOrbProps) {
+  const color = STATE_COLORS[state];
+  const speed = STATE_SPEEDS[state];
 
-  const startRecording = useCallback(async () => {
-    const hasPermission = await requestPermissions();
-    if (!hasPermission) return;
+  const scale1Anim = useRef(new Animated.Value(1)).current;
+  const scale2Anim = useRef(new Animated.Value(1)).current;
+  const scale3Anim = useRef(new Animated.Value(1)).current;
+  const opacity1Anim = useRef(new Animated.Value(0.6)).current;
+  const opacity2Anim = useRef(new Animated.Value(0.4)).current;
+  const opacity3Anim = useRef(new Animated.Value(0.2)).current;
 
-    try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale1Anim, {
+          toValue: 1.15,
+          duration: speed,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale1Anim, {
+          toValue: 1,
+          duration: speed,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
-      setAppState('recording');
-      setStatusMessage('CANAL ABERTO — FALE AGORA');
-      setConversation(null);
-      setErrorMessage('');
-    } catch (err) {
-      setErrorMessage('Falha ao iniciar gravação. Verifique as permissões.');
-      setAppState('error');
-    }
-  }, [requestPermissions]);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale2Anim, {
+          toValue: 1.3,
+          duration: speed * 1.3,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale2Anim, {
+          toValue: 1,
+          duration: speed * 1.3,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-  const stopRecordingAndProcess = useCallback(async () => {
-    if (!recordingRef.current) return;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale3Anim, {
+          toValue: 1.5,
+          duration: speed * 1.6,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale3Anim, {
+          toValue: 1,
+          duration: speed * 1.6,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-    try {
-      setAppState('processing');
-      setStatusMessage('ANALISANDO SOLICITAÇÃO...');
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity1Anim, {
+          toValue: 1,
+          duration: speed,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity1Anim, {
+          toValue: 0.6,
+          duration: speed,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity2Anim, {
+          toValue: 0.6,
+          duration: speed * 1.3,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity2Anim, {
+          toValue: 0.4,
+          duration: speed * 1.3,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
 
-      if (!uri) throw new Error('URI de áudio inválida');
-
-      setStatusMessage('TRANSCREVENDO DADOS VOCAIS...');
-      const userText = await transcribeAudio(uri);
-
-      setStatusMessage('PROCESSANDO RESPOSTA...');
-      const kittReply = await chatWithKITT(userText);
-
-      setStatusMessage('SINTETIZANDO VOZ...');
-      const audioDataUri = await textToSpeech(kittReply);
-
-      setConversation({ userText, kittText: kittReply });
-
-      // Play TTS audio
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-      }
-
-      setAppState('speaking');
-      setStatusMessage('TRANSMITINDO...');
-
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
-
-      // Write base64 to a temp file and play it
-      const base64Data = audioDataUri.replace('data:audio/mp3;base64,', '');
-      const tmpPath = `${FileSystem.cacheDirectory}kitt_response_${Date.now()}.mp3`;
-      await FileSystem.writeAsStringAsync(tmpPath, base64Data, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: tmpPath },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setAppState('done');
-          setStatusMessage('TRANSMISSÃO CONCLUÍDA');
-        }
-      });
-
-      // Clean up temp file after a delay
-      setTimeout(() => {
-        FileSystem.deleteAsync(tmpPath, { idempotent: true });
-      }, 30000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro desconhecido';
-      setErrorMessage(`FALHA NO SISTEMA: ${message}`);
-      setAppState('error');
-      setStatusMessage('ERRO DE SISTEMA');
-    }
-  }, []);
-
-  const handleMainButton = useCallback(() => {
-    if (appState === 'idle' || appState === 'done' || appState === 'error') {
-      startRecording();
-    } else if (appState === 'recording') {
-      stopRecordingAndProcess();
-    }
-  }, [appState, startRecording, stopRecordingAndProcess]);
-
-  const handleReset = useCallback(() => {
-    setAppState('idle');
-    setConversation(null);
-    setStatusMessage('SISTEMAS PRONTOS');
-    setErrorMessage('');
-  }, []);
-
-  const orbState = appState === 'done' || appState === 'error' ? 'idle' : appState;
-
-  const mainButtonLabel = {
-    idle: 'FALAR COM KITT',
-    recording: 'GRAVANDO... TOQUE PARA PARAR',
-    processing: 'PROCESSANDO...',
-    speaking: 'KITT RESPONDENDO...',
-    done: 'FALAR NOVAMENTE',
-    error: 'TENTAR NOVAMENTE',
-  }[appState];
-
-  const isButtonDisabled = appState === 'processing' || appState === 'speaking';
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity3Anim, {
+          toValue: 0.3,
+          duration: speed * 1.6,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity3Anim, {
+          toValue: 0.2,
+          duration: speed * 1.6,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [speed]);
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerLine} />
-          <Text style={styles.headerTitle}>K.I.T.T.</Text>
-          <View style={styles.headerLine} />
-        </View>
-
-        <Text style={styles.subtitle}>KNIGHT INDUSTRIES TWO THOUSAND</Text>
-
-        {/* Status bar */}
-        <View style={styles.statusBar}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>{statusMessage}</Text>
-        </View>
-
-        {/* Orb container */}
-        <View style={styles.orbContainer}>
-          <PulsingOrb state={orbState} />
-          <Text style={styles.onlineLabel}>KITT ONLINE</Text>
-        </View>
-
-        {/* Scanline decoration */}
-        <View style={styles.scanlineRow}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <View key={i} style={[styles.scanline, i % 2 === 0 && styles.scanlineBright]} />
-          ))}
-        </View>
-
-        {/* Main button */}
-        <TouchableOpacity
-          style={[
-            styles.mainButton,
-            appState === 'recording' && styles.mainButtonRecording,
-            isButtonDisabled && styles.mainButtonDisabled,
-          ]}
-          onPress={handleMainButton}
-          disabled={isButtonDisabled}
-          activeOpacity={0.75}
-        >
-          {isButtonDisabled ? (
-            <ActivityIndicator color="#FF0000" size="small" style={styles.buttonSpinner} />
-          ) : null}
-          <Text
-            style={[
-              styles.mainButtonText,
-              appState === 'recording' && styles.mainButtonTextRecording,
-            ]}
-          >
-            {mainButtonLabel}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Error message */}
-        {appState === 'error' && errorMessage ? (
-          <View style={styles.errorCard}>
-            <Text style={styles.errorLabel}>[ ERRO DE SISTEMA ]</Text>
-            <Text style={styles.errorText}>{errorMessage}</Text>
-          </View>
-        ) : null}
-
-        {/* Conversation card */}
-        {conversation ? (
-          <View style={styles.conversationCard}>
-            <View style={styles.conversationSection}>
-              <Text style={styles.conversationLabel}>[ ENTRADA VOCAL ]</Text>
-              <Text style={styles.conversationUserText}>{conversation.userText}</Text>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.conversationSection}>
-              <Text style={styles.conversationLabel}>[ RESPOSTA KITT ]</Text>
-              <Text style={styles.conversationKITTText}>{conversation.kittText}</Text>
-            </View>
-
-            {appState === 'done' ? (
-              <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                <Text style={styles.resetButtonText}>NOVA SESSÃO</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>SISTEMA DE IA AVANÇADO v2.0</Text>
-          <View style={styles.footerDots}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.footerDot,
-                  i === 2 && styles.footerDotActive,
-                ]}
-              />
-            ))}
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <Animated.View
+        style={[
+          styles.ring,
+          styles.ring3,
+          { borderColor: color },
+          {
+            transform: [{ scale: scale3Anim }],
+            opacity: opacity3Anim,
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.ring,
+          styles.ring2,
+          { borderColor: color },
+          {
+            transform: [{ scale: scale2Anim }],
+            opacity: opacity2Anim,
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.ring,
+          styles.ring1,
+          { borderColor: color },
+          {
+            transform: [{ scale: scale1Anim }],
+            opacity: opacity1Anim,
+          },
+        ]}
+      />
+      <View style={[styles.core, { shadowColor: color, borderColor: color }]}>
+        <View style={[styles.innerCore, { backgroundColor: color }]} />
+      </View>
+    </View>
   );
 }
 
-const RED = '#CC0000';
-const RED_BRIGHT = '#FF2222';
-const RED_DIM = '#660000';
-const RED_GLOW = 'rgba(200,0,0,0.15)';
-
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 6,
-  },
-  headerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: RED,
-    opacity: 0.6,
-  },
-  headerTitle: {
-    fontFamily: 'Orbitron-Black',
-    fontSize: 32,
-    color: RED_BRIGHT,
-    letterSpacing: 12,
-    paddingHorizontal: 16,
-    textShadowColor: RED,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
-  },
-  subtitle: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 9,
-    color: '#AA3333',
-    letterSpacing: 4,
-    marginBottom: 20,
-  },
-
-  // Status bar
-  statusBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(100,0,0,0.2)',
-    borderWidth: 1,
-    borderColor: RED_DIM,
-    borderRadius: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    width: '100%',
-    marginBottom: 32,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: RED_BRIGHT,
-    marginRight: 10,
-    shadowColor: RED_BRIGHT,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  statusText: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 10,
-    color: RED_BRIGHT,
-    letterSpacing: 2,
-  },
-
-  // Orb
-  orbContainer: {
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  onlineLabel: {
-    fontFamily: 'Orbitron-Bold',
-    fontSize: 11,
-    color: RED_BRIGHT,
-    letterSpacing: 6,
-    marginTop: 12,
-    textShadowColor: RED,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
-  },
-
-  // Scanlines
-  scanlineRow: {
-    flexDirection: 'row',
-    width: '60%',
-    height: 3,
-    marginVertical: 24,
-    gap: 6,
-  },
-  scanline: {
-    flex: 1,
-    height: 1,
-    backgroundColor: RED_DIM,
-    alignSelf: 'center',
-  },
-  scanlineBright: {
-    backgroundColor: RED,
-    height: 3,
-  },
-
-  // Main button
-  mainButton: {
-    width: '100%',
-    paddingVertical: 18,
-    borderWidth: 2,
-    borderColor: RED,
-    borderRadius: 4,
+  container: {
+    width: 180,
+    height: 180,
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    backgroundColor: RED_GLOW,
-    marginBottom: 24,
-    shadowColor: RED,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
-    elevation: 6,
   },
-  mainButtonRecording: {
-    borderColor: RED_BRIGHT,
-    backgroundColor: 'rgba(200,0,0,0.25)',
-    shadowOpacity: 1,
+  ring: {
+    position: 'absolute',
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  ring3: {
+    width: 170,
+    height: 170,
+  },
+  ring2: {
+    width: 130,
+    height: 130,
+  },
+  ring1: {
+    width: 100,
+    height: 100,
+  },
+  core: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(180,0,0,0.15)',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
     shadowRadius: 20,
+    elevation: 8,
   },
-  mainButtonDisabled: {
-    borderColor: RED_DIM,
-    backgroundColor: 'rgba(60,0,0,0.2)',
-    shadowOpacity: 0.2,
-  },
-  buttonSpinner: {
-    marginRight: 10,
-  },
-  mainButtonText: {
-    fontFamily: 'Orbitron-Bold',
-    fontSize: 13,
-    color: RED_BRIGHT,
-    letterSpacing: 3,
-    textShadowColor: RED,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 8,
-  },
-  mainButtonTextRecording: {
-    color: '#FF4444',
-  },
-
-  // Error card
-  errorCard: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: '#880000',
-    borderRadius: 4,
-    backgroundColor: 'rgba(80,0,0,0.3)',
-    padding: 16,
-    marginBottom: 20,
-  },
-  errorLabel: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 9,
-    color: '#FF6666',
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  errorText: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 11,
-    color: '#FF4444',
-    lineHeight: 18,
-  },
-
-  // Conversation card
-  conversationCard: {
-    width: '100%',
-    borderWidth: 1,
-    borderColor: RED_DIM,
-    borderRadius: 4,
-    backgroundColor: 'rgba(30,0,0,0.6)',
-    padding: 20,
-    marginBottom: 24,
-  },
-  conversationSection: {
-    paddingVertical: 4,
-  },
-  conversationLabel: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 9,
-    color: '#AA3333',
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  conversationUserText: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 12,
-    color: '#CCCCCC',
-    lineHeight: 20,
-  },
-  conversationKITTText: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 12,
-    color: RED_BRIGHT,
-    lineHeight: 20,
-    textShadowColor: RED,
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 4,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: RED_DIM,
-    marginVertical: 16,
-    opacity: 0.5,
-  },
-  resetButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: RED_DIM,
-    borderRadius: 4,
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  resetButtonText: {
-    fontFamily: 'Orbitron-Bold',
-    fontSize: 10,
-    color: '#AA3333',
-    letterSpacing: 3,
-  },
-
-  // Footer
-  footer: {
-    alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 8,
-    width: '100%',
-  },
-  footerText: {
-    fontFamily: 'Orbitron-Regular',
-    fontSize: 8,
-    color: '#440000',
-    letterSpacing: 2,
-    marginBottom: 10,
-  },
-  footerDots: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  footerDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: RED_DIM,
-  },
-  footerDotActive: {
-    backgroundColor: RED,
-    shadowColor: RED,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+  innerCore: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    opacity: 0.9,
   },
 });
